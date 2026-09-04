@@ -5,7 +5,17 @@
 set -eu
 
 TAG=${1:?usage: release-notes.sh <tag>}
-PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+
+# On a tag push the tag exists and the log runs up to it. On a manual release
+# the tag has not been created yet, so the log runs up to the commit being
+# built instead.
+if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null 2>&1; then
+	REF="${TAG}"
+	PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+else
+	REF=HEAD
+	PREV=$(git describe --tags --abbrev=0 2>/dev/null || true)
+fi
 
 cat <<'HEAD'
 ## Install
@@ -42,10 +52,10 @@ HEAD
 printf '## Changes\n\n'
 if [ -n "${PREV}" ]; then
 	printf 'Since %s:\n\n' "${PREV}"
-	git log --no-merges --pretty=format:'- %s (%h)' "${PREV}..${TAG}"
+	git log --no-merges --pretty=format:'- %s (%h)' "${PREV}..${REF}"
 	printf '\n'
 else
 	printf 'First release.\n\n'
-	git log --no-merges --pretty=format:'- %s (%h)' "${TAG}"
+	git log --no-merges --pretty=format:'- %s (%h)' "${REF}"
 	printf '\n'
 fi

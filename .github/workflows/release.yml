@@ -3,13 +3,27 @@ name: Release
 # Publishing a tag that starts with "v" builds the Windows binaries and creates
 # the matching GitHub release. A tag containing a hyphen (v1.2.0-rc.1) is
 # published as a pre-release.
+#
+# The same release can be produced manually from the Actions tab, which creates
+# the tag at the commit being built. That path exists for environments where
+# pushing a tag directly is not possible.
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, for example v1.0.0"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  # On a tag push this is the tag; on a manual run it is the supplied version.
+  VERSION: ${{ inputs.version || github.ref_name }}
 
 jobs:
   # The struct layout, vtable and HRESULT tests only compile on Windows, and a
@@ -41,6 +55,20 @@ jobs:
         with:
           go-version: "1.21"
 
+      - name: Validate version
+        run: |
+          set -eu
+          case "${VERSION}" in
+            v[0-9]*) ;;
+            *) echo "version must look like v1.2.3, got '${VERSION}'" >&2; exit 1 ;;
+          esac
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            echo "release ${VERSION} already exists" >&2
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Check formatting
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
 
@@ -51,12 +79,10 @@ jobs:
         run: go test ./...
 
       - name: Build release archive
-        env:
-          VERSION: ${{ github.ref_name }}
         run: ./package.sh
 
       - name: Write release notes
-        run: ./release-notes.sh "${GITHUB_REF_NAME}" > release-notes.md
+        run: ./release-notes.sh "${VERSION}" > release-notes.md
 
       - name: Publish release
         env:
@@ -64,13 +90,17 @@ jobs:
         run: |
           set -eu
           # A hyphen in the tag marks a pre-release: v1.2.0-rc.1, v1.2.0-beta.
-          case "${GITHUB_REF_NAME}" in
+          case "${VERSION}" in
             *-*) PRERELEASE=--prerelease ;;
             *)   PRERELEASE= ;;
           esac
+          # --target creates the tag at this commit when it does not exist yet,
+          # which is what makes the manual path work; on a tag push the tag is
+          # already there and this is a no-op.
           # shellcheck disable=SC2086
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "mymstsc ${GITHUB_REF_NAME}" \
+          gh release create "${VERSION}" \
+            --target "${GITHUB_SHA}" \
+            --title "mymstsc ${VERSION}" \
             --notes-file release-notes.md \
             ${PRERELEASE} \
             dist/*.zip \
@@ -78,7 +108,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mymstsc-${{ github.ref_name }}-windows-amd64
+          name: mymstsc-${{ env.VERSION }}-windows-amd64
           path: |
             dist/*.zip
             dist/SHA256SUMS.txt

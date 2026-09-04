@@ -115,6 +115,10 @@ cross-compiles the tag, and publishes the archive together with generated notes.
 A tag containing a hyphen (`v1.0.0-rc.1`) is published as a pre-release. The tag
 name is compiled into the binary and reported by `mymstsc /version`.
 
+The same workflow can be started by hand from the Actions tab with a version to
+publish; it then creates the tag at the commit it builds. Use that where pushing
+a tag directly is not possible.
+
 The same archive can be produced locally with `./package.sh`.
 
 ## Building
