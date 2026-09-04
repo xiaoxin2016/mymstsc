@@ -35,6 +35,11 @@ Display:
   /multimon              use true multiple-monitor mode
   /bpp:<n>               colour depth: 8, 15, 16, 24 or 32
   /smartsizing[:0|1]     scale the session to the window
+  /scale:auto|<percent>  desktop scale factor; "auto" (default) follows the DPI
+                         of the monitor the window is on, so a session on a
+                         high-DPI screen is as readable as a local one
+  /devicescale:<percent> device scale factor: 100, 140 or 180. Derived from
+                         /scale when not given
   /conbar:0|1            show the connection bar in full screen (default 1)
   /noresize              do not resize the remote desktop with the window
   /title:<text>          window title
@@ -222,6 +227,16 @@ func parseArgs(args []string) (*parseResult, error) {
 			cfg.MultiMon = true
 		case "bpp", "colordepth":
 			cfg.ColorDepth, err = intValue()
+		case "scale":
+			var v string
+			if v, err = needValue(); err == nil {
+				cfg.Scale, err = parseScale(v)
+			}
+		case "devicescale":
+			var v string
+			if v, err = needValue(); err == nil {
+				cfg.DeviceScale, err = parseDeviceScale(v)
+			}
 		case "smartsizing":
 			var b bool
 			if b, err = onOff(); err == nil {

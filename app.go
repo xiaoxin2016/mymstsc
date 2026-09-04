@@ -18,9 +18,14 @@ type App struct {
 
 	warnings []string
 
-	connected      bool
-	everConnected  bool
-	loginComplete  bool
+	connected     bool
+	everConnected bool
+	loginComplete bool
+
+	// fullScreen tracks the control's actual mode, which changes at run time
+	// through the connection bar or Ctrl+Alt+Break, not just the requested one.
+	fullScreen     bool
+	scaleApplied   bool
 	disconnectSeen bool
 	logonError     bool
 	fatalError     bool
@@ -189,17 +194,8 @@ func (a *App) resolveSize() {
 	cfg.Width &^= 1
 	cfg.Height &^= 1
 	a.sessionW, a.sessionH = int32(cfg.Width), int32(cfg.Height)
+	a.fullScreen = cfg.FullScreen
 	logDebugf("session size %dx%d (screen %dx%d)", cfg.Width, cfg.Height, sw, sh)
-}
-
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
 }
 
 // createWindow registers the window class and creates the container window
@@ -323,6 +319,23 @@ func wndProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 		a.applyDynamicResize()
 		return 0
 
+	case WM_DPICHANGED:
+		// Windows sends this when the window moves to a monitor with a
+		// different DPI, and passes the rectangle the window should take on
+		// that monitor. Honouring it and renegotiating the session is what
+		// keeps a session readable across mixed-DPI setups.
+		if lp != 0 {
+			rc := (*RECT)(unsafe.Pointer(lp))
+			setWindowPos(hwnd, rc.Left, rc.Top, rc.width(), rc.height(),
+				SWP_NOZORDER|SWP_NOACTIVATE)
+		}
+		logDebugf("monitor DPI is now %d", uint16(wp))
+		a.pendingResize = true
+		a.scaleApplied = false
+		a.applyDynamicResize()
+		a.applyScale()
+		return 0
+
 	case WM_SETFOCUS:
 		a.focusControl()
 		return 0
@@ -341,6 +354,14 @@ func wndProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 
 	case wmRDPConnected:
 		setWindowText(hwnd, a.cfg.Title)
+		// Some revisions of the control only honour FullScreen once there is a
+		// session to show, so a request made before connecting is repeated here.
+		if a.cfg.FullScreen && !a.fullScreen {
+			if err := a.ctl.setAny(true, "FullScreen"); err != nil {
+				logWarnf("full screen could not be entered: %v", err)
+			}
+		}
+		a.applyScale()
 		return 0
 
 	case wmRDPDisconnected:
@@ -390,6 +411,47 @@ func (a *App) focusControl() {
 	}
 }
 
+// scaleFactors returns the desktop and device scale factors to hand to the
+// session: the ones asked for on the command line, or those of the monitor the
+// window currently sits on.
+func (a *App) scaleFactors() (desktop, device uint32) {
+	d := a.cfg.Scale
+	if d == scaleAuto {
+		d = desktopScaleForDPI(int(dpiForWindow(a.hwnd)))
+	}
+	dev := a.cfg.DeviceScale
+	if dev == scaleAuto {
+		dev = deviceScaleForDesktopScale(d)
+	}
+	return uint32(d), uint32(dev)
+}
+
+// applyScale hands the current scale factors to the session without changing
+// its size. It runs once the session is up, because the scale factors travel
+// with the display settings rather than with the connection settings.
+func (a *App) applyScale() {
+	if a.scaleApplied || !a.connected {
+		return
+	}
+	desktop, device := a.scaleFactors()
+	if desktop == 100 && device == 100 {
+		a.scaleApplied = true
+		return
+	}
+	w, h := a.sessionW, a.sessionH
+	if w < 200 || h < 200 {
+		return
+	}
+	if err := a.ctl.UpdateSessionDisplaySettings(w, h, desktop, device); err != nil {
+		logWarnf("the remote session could not be scaled to %d%% (%v); "+
+			"it will render at 100%% and look small on this display", desktop, err)
+		a.scaleApplied = true
+		return
+	}
+	a.scaleApplied = true
+	logInfof("remote session scaled to %d%% (device %d%%)", desktop, device)
+}
+
 // applyDynamicResize asks the server to match the window size, which is what
 // mstsc does when "dynamic resolution" is on.
 func (a *App) applyDynamicResize() {
@@ -397,7 +459,7 @@ func (a *App) applyDynamicResize() {
 		return
 	}
 	a.pendingResize = false
-	if !a.cfg.DynamicResize || !a.connected || a.cfg.FullScreen {
+	if !a.cfg.DynamicResize || !a.connected || a.fullScreen {
 		return
 	}
 	rc := clientRect(a.hwnd)
@@ -405,7 +467,8 @@ func (a *App) applyDynamicResize() {
 	if w < 200 || h < 200 || (w == a.sessionW && h == a.sessionH) {
 		return
 	}
-	if err := a.ctl.UpdateSessionDisplaySettings(w, h); err != nil {
+	desktop, device := a.scaleFactors()
+	if err := a.ctl.UpdateSessionDisplaySettings(w, h, desktop, device); err != nil {
 		logDebugf("UpdateSessionDisplaySettings: %v", err)
 		// Controls older than IMsRdpClient9 only offer Reconnect, which
 		// renegotiates the session at the new size.
@@ -419,7 +482,7 @@ func (a *App) applyDynamicResize() {
 		}
 	}
 	a.sessionW, a.sessionH = w, h
-	logDebugf("session resized to %dx%d", w, h)
+	logDebugf("session resized to %dx%d at %d%%", w, h, desktop)
 }
 
 // onEvent receives every event the control raises. Names come from the type
@@ -458,8 +521,15 @@ func (a *App) onEvent(id int32, name string, args []VARIANT) {
 	case "OnAutoReconnected":
 		logInfof("reconnected")
 	case "OnEnterFullScreenMode", "OnRequestGoFullScreen":
+		// The control owns the full-screen window itself, so there is nothing
+		// to do here beyond remembering the mode: resizing the session with
+		// the container window would fight it.
+		a.fullScreen = true
 		logDebugf("entering full screen")
 	case "OnLeaveFullScreenMode", "OnRequestLeaveFullScreen":
+		a.fullScreen = false
+		a.pendingResize = true
+		a.applyDynamicResize()
 		logDebugf("leaving full screen")
 	case "OnRequestContainerMinimize":
 		showWindow(a.hwnd, SW_MINIMIZE)

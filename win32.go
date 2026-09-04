@@ -208,6 +208,11 @@ func setWindowText(hwnd uintptr, s string) {
 	procSetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(utf16Ptr(s))))
 }
 
+func setWindowPos(hwnd uintptr, x, y, cx, cy int32, flags uint32) {
+	procSetWindowPos.Call(hwnd, 0,
+		uintptr(x), uintptr(y), uintptr(cx), uintptr(cy), uintptr(flags))
+}
+
 func clientRect(hwnd uintptr) RECT {
 	var r RECT
 	procGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))

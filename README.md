@@ -69,7 +69,7 @@ and shortcuts mostly work unchanged:
 | Area | Switches |
 |---|---|
 | Connection | `/v:<server[:port]>` `/port:<n>` `/u:<user>` `/d:<domain>` `/p:<password>` `/prompt` |
-| Display | `/f` `/w:<n>` `/h:<n>` `/span` `/multimon` `/bpp:<n>` `/smartsizing[:0\|1]` `/conbar:0\|1` `/noresize` `/title:<text>` |
+| Display | `/f` `/w:<n>` `/h:<n>` `/span` `/multimon` `/bpp:<n>` `/scale:auto\|<percent>` `/devicescale:<percent>` `/smartsizing[:0\|1]` `/conbar:0\|1` `/noresize` `/title:<text>` |
 | Session | `/admin` `/public` `/restrictedAdmin` `/remoteGuard` `/shell:<program>` `/workdir:<path>` |
 | Redirection | `/drives` `/clipboard` `/printers` `/ports` `/smartcards` (each takes `:0` or `:1`), `/audio:<n>` |
 | Gateway | `/g:<host>` `/gu:<user>` `/gd:<domain>` `/gp:<password>` |
@@ -173,7 +173,43 @@ rdpfile.go     .rdp parsing; dpapi.go  stored password decryption
 win32.go       Win32 bindings, DPI awareness
 ```
 
-Two details matter for behaviour:
+### Full screen
+
+`/f` connects full screen; `/multimon` and `/span` imply it. A `.rdp` file with
+`screen mode id:i:2` does the same. The control owns the full-screen window
+itself, including the connection bar and the Ctrl+Alt+Break toggle, exactly as
+under `mstsc` — this program deliberately leaves `ContainerHandledFullScreen` at
+its default rather than reimplementing that. Entering and leaving full screen at
+run time is tracked, so the session stops following the container window while
+it is full screen and resumes afterwards.
+
+### High DPI
+
+The process opts into per-monitor DPI awareness with the newest API the host
+offers (`SetProcessDpiAwarenessContext` on Server 2019 and later,
+`SetProcessDpiAwareness` on Server 2016, `SetProcessDPIAware` before that), so
+the window is never bitmap-stretched by Windows.
+
+Awareness alone would still leave the remote desktop rendering at 100% and
+looking tiny on a scaled display, so the scale factors are handed to the session
+as well:
+
+* `/scale:auto` (the default) reads the DPI of the monitor the window is on and
+  converts it to a desktop scale factor — 120 DPI becomes 125%, 144 becomes
+  150%, 192 becomes 200%.
+* The device scale factor is derived from it, restricted to the values the
+  control accepts (100, 140, 180); `/devicescale:` overrides that choice.
+* `/scale:<percent>` pins a scale instead, and `desktopscalefactor` /
+  `devicescalefactor` in a `.rdp` file are honoured.
+* `WM_DPICHANGED` is handled: moving the window between monitors of different
+  DPI takes the rectangle Windows suggests and renegotiates the session.
+
+The scale travels with `UpdateSessionDisplaySettings`, which means it needs
+`IMsRdpClient9` or newer (Windows 8.1 / Server 2012 R2 onwards — every supported
+server has it). If the control rejects a scale factor pair, the call is retried
+unscaled so a rejected scale never costs the resize.
+
+Two further details matter for behaviour:
 
 * Keyboard input is offered to `IOleInPlaceActiveObject::TranslateAccelerator`
   before `TranslateMessage`. Without that the control never sees Tab, the arrow

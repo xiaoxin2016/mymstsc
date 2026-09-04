@@ -436,16 +436,28 @@ func (c *rdpControl) ErrorDescription(reason, extended int32) string {
 	return strings.TrimSpace(s)
 }
 
-// UpdateSessionDisplaySettings asks the server to resize the desktop, which is
-// what makes a windowed session follow the window like mstsc does. It exists
-// from IMsRdpClient9 (Windows 8.1 / Server 2012 R2) onwards.
-func (c *rdpControl) UpdateSessionDisplaySettings(w, h int32) error {
-	return c.dispatch.call("UpdateSessionDisplaySettings",
+// UpdateSessionDisplaySettings asks the server to resize the desktop and to
+// render it at the given scale, which is what makes a windowed session follow
+// the window and stay readable on a high-DPI monitor. It exists from
+// IMsRdpClient9 (Windows 8.1 / Server 2012 R2) onwards.
+//
+// The accepted range of the two scale factors cannot be checked from here, so a
+// rejected pair falls back to an unscaled call: a wrong assumption about the
+// scaling then costs the scaling, not the resize.
+func (c *rdpControl) UpdateSessionDisplaySettings(w, h int32, desktopScale, deviceScale uint32) error {
+	err := c.dispatch.call("UpdateSessionDisplaySettings",
 		uint32(w), uint32(h), // desktop width/height
 		uint32(0), uint32(0), // physical width/height in mm, 0 = unspecified
-		uint32(0),   // orientation
-		uint32(100), // desktop scale factor, percent
-		uint32(100)) // device scale factor, percent
+		uint32(0),    // orientation
+		desktopScale, // desktop scale factor, percent
+		deviceScale)  // device scale factor, percent
+	if err == nil || (desktopScale == 100 && deviceScale == 100) {
+		return err
+	}
+	logDebugf("UpdateSessionDisplaySettings at %d%%/%d%%: %v; retrying unscaled",
+		desktopScale, deviceScale, err)
+	return c.dispatch.call("UpdateSessionDisplaySettings",
+		uint32(w), uint32(h), uint32(0), uint32(0), uint32(0), uint32(100), uint32(100))
 }
 
 // Reconnect is the pre-IMsRdpClient9 way to change the session size.

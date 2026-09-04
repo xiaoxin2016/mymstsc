@@ -198,6 +198,27 @@ func applyRDPFile(cfg *Config, path string) error {
 			if b, ok := flag(e); ok {
 				cfg.SmartSizing = boolPtr(b)
 			}
+		case "desktopscalefactor":
+			if n, ok := num(e); ok {
+				if n < 100 || n > 500 {
+					logWarnf("%s:%d: desktopscalefactor %d out of range, ignored", path, e.Line, n)
+				} else {
+					cfg.Scale = n
+				}
+			}
+		case "devicescalefactor":
+			if n, ok := num(e); ok {
+				valid := false
+				for _, v := range deviceScaleBuckets {
+					valid = valid || v == n
+				}
+				if !valid {
+					logWarnf("%s:%d: devicescalefactor %d is not one of %v, ignored",
+						path, e.Line, n, deviceScaleBuckets)
+				} else {
+					cfg.DeviceScale = n
+				}
+			}
 		case "dynamic resolution":
 			if b, ok := flag(e); ok {
 				cfg.DynamicResize = b
@@ -375,7 +396,7 @@ func applyRDPFile(cfg *Config, path string) error {
 			"videoplaybackmode", "redirectdirectx", "usbdevicestoredirect",
 			"camerastoredirect", "devicestoredirect", "selectedmonitors",
 			"maximizetocurrentdisplays", "singlemoninwindowedmode",
-			"desktopscalefactor", "devicescalefactor", "enableworkspacereconnect",
+			"enableworkspacereconnect",
 			"workspaceid", "kdcproxyname", "rdgiskdcproxy", "public mode",
 			"remoteapplicationmode", "remoteapplicationname",
 			"remoteapplicationprogram", "remoteapplicationcmdline",

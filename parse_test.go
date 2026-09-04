@@ -392,3 +392,125 @@ func TestHRESULTConstants(t *testing.T) {
 		t.Error("S_OK and S_FALSE are success codes")
 	}
 }
+
+func TestDesktopScaleForDPI(t *testing.T) {
+	cases := []struct{ dpi, want int }{
+		{0, 100},   // unknown DPI falls back to 100%
+		{96, 100},  // 100%
+		{120, 125}, // 125%
+		{144, 150}, // 150%
+		{168, 175}, // 175%
+		{192, 200}, // 200%
+		{240, 250}, // 250%
+		{48, 100},  // below 96 DPI is clamped
+		{9600, 500},
+	}
+	for _, c := range cases {
+		if got := desktopScaleForDPI(c.dpi); got != c.want {
+			t.Errorf("desktopScaleForDPI(%d) = %d; want %d", c.dpi, got, c.want)
+		}
+	}
+}
+
+func TestDeviceScaleForDesktopScale(t *testing.T) {
+	cases := []struct{ desktop, want int }{
+		{100, 100},
+		{125, 100},
+		{140, 140},
+		{150, 140},
+		{175, 140},
+		{180, 180},
+		{200, 180},
+		{500, 180},
+	}
+	for _, c := range cases {
+		got := deviceScaleForDesktopScale(c.desktop)
+		if got != c.want {
+			t.Errorf("deviceScaleForDesktopScale(%d) = %d; want %d", c.desktop, got, c.want)
+		}
+		ok := false
+		for _, v := range deviceScaleBuckets {
+			ok = ok || v == got
+		}
+		if !ok {
+			t.Errorf("deviceScaleForDesktopScale(%d) = %d, which the control does not accept",
+				c.desktop, got)
+		}
+	}
+}
+
+func TestParseScale(t *testing.T) {
+	for _, in := range []string{"", "auto", "AUTO"} {
+		if got, err := parseScale(in); err != nil || got != scaleAuto {
+			t.Errorf("parseScale(%q) = %d, %v", in, got, err)
+		}
+	}
+	if got, err := parseScale("150"); err != nil || got != 150 {
+		t.Errorf(`parseScale("150") = %d, %v`, got, err)
+	}
+	if got, err := parseScale("200%"); err != nil || got != 200 {
+		t.Errorf(`parseScale("200%%") = %d, %v`, got, err)
+	}
+	for _, bad := range []string{"50", "600", "big", "1.5"} {
+		if _, err := parseScale(bad); err == nil {
+			t.Errorf("parseScale(%q) should fail", bad)
+		}
+	}
+
+	if got, err := parseDeviceScale("140"); err != nil || got != 140 {
+		t.Errorf(`parseDeviceScale("140") = %d, %v`, got, err)
+	}
+	for _, bad := range []string{"120", "160", "0", "x"} {
+		if _, err := parseDeviceScale(bad); err == nil {
+			t.Errorf("parseDeviceScale(%q) should fail", bad)
+		}
+	}
+}
+
+func TestParseArgsScale(t *testing.T) {
+	res, err := parseArgs([]string{"/v:x", "/scale:150", "/devicescale:140"})
+	if err != nil {
+		t.Fatalf("parseArgs: %v", err)
+	}
+	if res.cfg.Scale != 150 || res.cfg.DeviceScale != 140 {
+		t.Errorf("scale = %d, device = %d", res.cfg.Scale, res.cfg.DeviceScale)
+	}
+	if _, err := parseArgs([]string{"/v:x", "/scale:600"}); err == nil {
+		t.Error("/scale:600 should be rejected")
+	}
+
+	// The default is automatic, and must validate.
+	res, err = parseArgs([]string{"/v:x"})
+	if err != nil {
+		t.Fatalf("parseArgs: %v", err)
+	}
+	if res.cfg.Scale != scaleAuto || res.cfg.DeviceScale != scaleAuto {
+		t.Errorf("defaults are %d/%d; want automatic", res.cfg.Scale, res.cfg.DeviceScale)
+	}
+	if err := res.cfg.Validate(); err != nil {
+		t.Errorf("Validate: %v", err)
+	}
+}
+
+func TestRDPFileScaleFactors(t *testing.T) {
+	p := writeTemp(t, "hidpi.rdp",
+		"full address:s:rds01\ndesktopscalefactor:i:150\ndevicescalefactor:i:140\n")
+	cfg := newConfig()
+	if err := applyRDPFile(cfg, p); err != nil {
+		t.Fatalf("applyRDPFile: %v", err)
+	}
+	if cfg.Scale != 150 || cfg.DeviceScale != 140 {
+		t.Errorf("scale = %d, device = %d", cfg.Scale, cfg.DeviceScale)
+	}
+
+	// Values the control cannot take are ignored rather than passed on.
+	p2 := writeTemp(t, "bad.rdp",
+		"full address:s:rds01\ndesktopscalefactor:i:900\ndevicescalefactor:i:160\n")
+	cfg2 := newConfig()
+	if err := applyRDPFile(cfg2, p2); err != nil {
+		t.Fatalf("applyRDPFile: %v", err)
+	}
+	if cfg2.Scale != scaleAuto || cfg2.DeviceScale != scaleAuto {
+		t.Errorf("out-of-range values were kept: %d/%d", cfg2.Scale, cfg2.DeviceScale)
+	}
+}

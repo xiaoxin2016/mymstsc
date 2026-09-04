@@ -52,6 +52,12 @@ type Config struct {
 
 	SmartSizing   *bool
 	DynamicResize bool
+
+	// Scale is the desktop scale factor in percent, or scaleAuto to follow the
+	// DPI of the monitor. DeviceScale is the matching device scale factor, or
+	// scaleAuto to derive it from Scale.
+	Scale         int
+	DeviceScale   int
 	ConnectionBar *bool
 	PinConnBar    *bool
 
@@ -132,6 +138,18 @@ func (c *Config) Validate() error {
 	}
 	if c.Height != 0 && (c.Height < 200 || c.Height > 8192) {
 		return errf("height %d out of range (200-8192)", c.Height)
+	}
+	if c.Scale != scaleAuto && (c.Scale < 100 || c.Scale > 500) {
+		return errf("scale %d%% out of range (100-500)", c.Scale)
+	}
+	if c.DeviceScale != scaleAuto {
+		ok := false
+		for _, v := range deviceScaleBuckets {
+			ok = ok || v == c.DeviceScale
+		}
+		if !ok {
+			return errf("device scale must be one of %v, got %d", deviceScaleBuckets, c.DeviceScale)
+		}
 	}
 	switch c.ColorDepth {
 	case 0, 8, 15, 16, 24, 32:
