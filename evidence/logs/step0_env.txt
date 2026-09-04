@@ -1,0 +1,18 @@
+### 步骤 0：确认目标版本与鉴权开关（受影响环境）
+$ curl -s http://127.0.0.1:8080/v3/console/server/state | python3 -m json.tool
+    "version": "3.2.3"
+    "startup_mode": "standalone"
+    "auth_enabled": "true"
+    "auth_admin_request": "false"
+    "server_port": "8848"
+    "datasource_platform": ""
+
+$ grep -E "^nacos.core.auth.(enabled|admin.enabled|console.enabled|caching)" conf/application.properties
+nacos.core.auth.enabled=false
+nacos.core.auth.admin.enabled=true
+nacos.core.auth.console.enabled=true
+nacos.core.auth.caching.enabled=true
+
+# 结论：版本 3.2.3（属于 3.0.0-3.2.3 受影响区间）
+# OPEN_API 鉴权开关 nacos.core.auth.enabled 保持出厂默认 false
+# ADMIN / CONSOLE 两个鉴权开关均为 true —— 管理员视角上"认证已开启"

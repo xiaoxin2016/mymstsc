@@ -1,0 +1,18 @@
+### 步骤 5：/v3/auth/** 匿名可达性矩阵（8848 OPEN_API 端口，全程无任何凭证）
+
+METHOD  PATH                       CODE   RESPONSE
+------  -------------------------- ------ --------------------------------
+GET     /v3/auth/user/list         200    {'totalCount': 2, 'pageNumber': 1, 'pagesAva
+GET     /v3/auth/user/search       200    ['nacos']
+POST    /v3/auth/user              200    create user ok!
+DELETE  /v3/auth/user              200    delete user ok!
+PUT     /v3/auth/user              403    authorization failed!
+GET     /v3/auth/role/list         200    {'totalCount': 2, 'pageNumber': 1, 'pagesAva
+POST    /v3/auth/role              200    add role ok!
+DELETE  /v3/auth/role              200    delete role of user nacos ok!
+GET     /v3/auth/permission/list   200    {'totalCount': 0, 'pageNumber': 1, 'pagesAva
+POST    /v3/auth/permission        200    add permission ok!
+DELETE  /v3/auth/permission        200    delete permission ok!
+
+# 11 个接口中 10 个匿名放行；唯一被拦的 PUT /v3/auth/user 是因为它额外带了
+# ONLY_IDENTITY 标签强制做身份校验，与 apiType 无关 —— 属于"碰巧没中招"。
