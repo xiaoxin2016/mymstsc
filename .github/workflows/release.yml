@@ -12,7 +12,24 @@ permissions:
   contents: write
 
 jobs:
+  # The struct layout, vtable and HRESULT tests only compile on Windows, and a
+  # tag must not publish binaries that fail them.
+  windows-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Test
+        run: go test ./...
+      - name: Vet
+        # The COM boundary dereferences pointers the control owns, which the
+        # unsafeptr check cannot tell apart from a real mistake.
+        run: go vet -unsafeptr=false ./...
+
   release:
+    needs: windows-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
