@@ -99,6 +99,24 @@ prompt rather than failing.
 rejected with an explanation. Session shadowing in particular is not exposed by
 the client control, so it cannot be reimplemented on top of it.
 
+## Releases
+
+Ready-made binaries are attached to each [release](../../releases). Download the
+`.zip`, unzip it, and copy the executable wherever you need it — there is
+nothing to install. `SHA256SUMS.txt` next to it carries the checksums:
+
+```powershell
+Get-FileHash .\mymstsc.exe -Algorithm SHA256
+```
+
+Releases are cut by pushing a tag: `git tag -a v1.0.0 -m "v1.0.0" && git push
+origin v1.0.0`. The `Release` workflow then formats, vets, tests and
+cross-compiles the tag, and publishes the archive together with generated notes.
+A tag containing a hyphen (`v1.0.0-rc.1`) is published as a pre-release. The tag
+name is compiled into the binary and reported by `mymstsc /version`.
+
+The same archive can be produced locally with `./package.sh`.
+
 ## Building
 
 No third-party modules; the standard library is all that is needed.

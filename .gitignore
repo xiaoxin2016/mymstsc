@@ -1,4 +1,5 @@
 *.syso
+/dist/
 /mymstsc
 /mymstsc-gui.exe
 /mymstsc.exe
