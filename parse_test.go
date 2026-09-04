@@ -360,3 +360,35 @@ func TestParseLogLevel(t *testing.T) {
 		t.Error("an unknown level should fail")
 	}
 }
+
+func TestHRESULTConstants(t *testing.T) {
+	// The negative literals must correspond to the documented hex values.
+	cases := []struct {
+		hr   HRESULT
+		want uint32
+	}{
+		{E_NOTIMPL, 0x80004001},
+		{E_NOINTERFACE, 0x80004002},
+		{E_POINTER, 0x80004003},
+		{E_FAIL, 0x80004005},
+		{E_OUTOFMEMORY, 0x8007000E},
+		{E_UNEXPECTED, 0x8000FFFF},
+		{E_INVALIDARG, 0x80070057},
+		{DISP_E_MEMBERNOTFOUND, 0x80020003},
+		{DISP_E_UNKNOWNNAME, 0x80020006},
+		{DISP_E_EXCEPTION, 0x80020009},
+		{REGDB_E_CLASSNOTREG, 0x80040154},
+		{CLASS_E_CLASSNOTAVAILABLE, 0x80040111},
+	}
+	for _, c := range cases {
+		if uint32(c.hr) != c.want {
+			t.Errorf("HRESULT %d is 0x%08X; want 0x%08X", c.hr, uint32(c.hr), c.want)
+		}
+		if !c.hr.Failed() {
+			t.Errorf("0x%08X should be a failure code", c.want)
+		}
+	}
+	if S_OK.Failed() || S_FALSE.Failed() {
+		t.Error("S_OK and S_FALSE are success codes")
+	}
+}

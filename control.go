@@ -318,7 +318,7 @@ func (c *rdpControl) target(name string) (disp, error) {
 // call is marshalled through the interface's own type information.
 func (c *rdpControl) setNonScriptable(name string, value interface{}) error {
 	if len(c.nonScriptable) == 0 {
-		return &notSupportedError{member: name, object: "nonscriptable", hr: TYPE_E_ELEMENTNOTFOUND}
+		return &notSupportedError{member: name, object: "IMsRdpClientNonScriptable*", hr: DISP_E_UNKNOWNNAME}
 	}
 	var lastErr error
 	for _, t := range c.nonScriptable {

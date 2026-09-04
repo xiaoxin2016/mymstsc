@@ -8,63 +8,6 @@ import (
 	"unsafe"
 )
 
-// ---------------------------------------------------------------------------
-// HRESULT
-// ---------------------------------------------------------------------------
-
-type HRESULT int32
-
-const (
-	S_OK    HRESULT = 0
-	S_FALSE HRESULT = 1
-
-	E_NOTIMPL     HRESULT = -2147467263 // 0x80004001
-	E_NOINTERFACE HRESULT = -2147467262 // 0x80004002
-	E_POINTER     HRESULT = -2147467261 // 0x80004003
-	E_FAIL        HRESULT = -2147467259 // 0x80004005
-	E_OUTOFMEMORY HRESULT = -2147024882 // 0x8007000E
-	E_UNEXPECTED  HRESULT = -2147418113 // 0x8000FFFF
-	E_INVALIDARG  HRESULT = -2147024809 // 0x80070057
-
-	DISP_E_MEMBERNOTFOUND  HRESULT = -2147352573 // 0x80020003
-	DISP_E_UNKNOWNNAME     HRESULT = -2147352570 // 0x80020006
-	DISP_E_EXCEPTION       HRESULT = -2147352567 // 0x80020009
-	DISP_E_BADPARAMCOUNT   HRESULT = -2147352562 // 0x8002000E
-	TYPE_E_ELEMENTNOTFOUND HRESULT = -2147352077 // 0x8002802B
-
-	REGDB_E_CLASSNOTREG       HRESULT = -2147221164 // 0x80040154
-	CLASS_E_CLASSNOTAVAILABLE HRESULT = -2147221231 // 0x80040111
-
-	OLEOBJ_S_INVALIDVERB HRESULT = 262656 // 0x00040180
-)
-
-func (h HRESULT) Failed() bool { return h < 0 }
-func (h HRESULT) OK() bool     { return h >= 0 }
-
-func (h HRESULT) Error() string {
-	if n, ok := hresultNames[h]; ok {
-		return fmt.Sprintf("%s (0x%08X)", n, uint32(h))
-	}
-	return fmt.Sprintf("HRESULT 0x%08X", uint32(h))
-}
-
-var hresultNames = map[HRESULT]string{
-	E_NOTIMPL:                 "E_NOTIMPL",
-	E_NOINTERFACE:             "E_NOINTERFACE",
-	E_POINTER:                 "E_POINTER",
-	E_FAIL:                    "E_FAIL",
-	E_OUTOFMEMORY:             "E_OUTOFMEMORY",
-	E_UNEXPECTED:              "E_UNEXPECTED",
-	E_INVALIDARG:              "E_INVALIDARG",
-	DISP_E_MEMBERNOTFOUND:     "DISP_E_MEMBERNOTFOUND",
-	DISP_E_UNKNOWNNAME:        "DISP_E_UNKNOWNNAME",
-	DISP_E_EXCEPTION:          "DISP_E_EXCEPTION",
-	DISP_E_BADPARAMCOUNT:      "DISP_E_BADPARAMCOUNT",
-	TYPE_E_ELEMENTNOTFOUND:    "TYPE_E_ELEMENTNOTFOUND",
-	REGDB_E_CLASSNOTREG:       "REGDB_E_CLASSNOTREG",
-	CLASS_E_CLASSNOTAVAILABLE: "CLASS_E_CLASSNOTAVAILABLE",
-}
-
 // hres converts an HRESULT into the uintptr a COM callback must return.
 func hres(h HRESULT) uintptr { return uintptr(uint32(h)) }
 

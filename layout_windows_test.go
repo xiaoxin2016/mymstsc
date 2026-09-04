@@ -104,41 +104,6 @@ func TestGUIDParsing(t *testing.T) {
 	}
 }
 
-func TestHRESULTConstants(t *testing.T) {
-	// The negative literals must correspond to the documented hex values.
-	cases := []struct {
-		hr   HRESULT
-		want uint32
-	}{
-		{E_NOTIMPL, 0x80004001},
-		{E_NOINTERFACE, 0x80004002},
-		{E_POINTER, 0x80004003},
-		{E_FAIL, 0x80004005},
-		{E_OUTOFMEMORY, 0x8007000E},
-		{E_UNEXPECTED, 0x8000FFFF},
-		{E_INVALIDARG, 0x80070057},
-		{DISP_E_MEMBERNOTFOUND, 0x80020003},
-		{DISP_E_UNKNOWNNAME, 0x80020006},
-		{DISP_E_EXCEPTION, 0x80020009},
-		{REGDB_E_CLASSNOTREG, 0x80040154},
-		{TYPE_E_ELEMENTNOTFOUND, 0x8002802B},
-	}
-	for _, c := range cases {
-		if uint32(c.hr) != c.want {
-			t.Errorf("HRESULT %d is 0x%08X; want 0x%08X", c.hr, uint32(c.hr), c.want)
-		}
-		if !c.hr.Failed() {
-			t.Errorf("0x%08X should be a failure code", c.want)
-		}
-	}
-	if S_OK.Failed() || S_FALSE.Failed() {
-		t.Error("S_OK and S_FALSE are success codes")
-	}
-	if hres(E_NOTIMPL) != uintptr(uint32(0x80004001)) {
-		t.Error("hres must widen the HRESULT without sign extension in the low word")
-	}
-}
-
 func TestVariantRoundTrip(t *testing.T) {
 	v, err := newVariant(int32(-42))
 	if err != nil {
@@ -176,5 +141,16 @@ func TestVariantRoundTrip(t *testing.T) {
 
 	if _, err := newVariant(struct{}{}); err == nil {
 		t.Error("an unsupported type should be rejected")
+	}
+}
+
+// hres widens an HRESULT into the value a COM callback returns; the low 32
+// bits must still read as the original failure code.
+func TestHRESULTCallbackReturn(t *testing.T) {
+	if uint32(hres(E_NOTIMPL)) != 0x80004001 {
+		t.Errorf("hres(E_NOTIMPL) = 0x%X", hres(E_NOTIMPL))
+	}
+	if hres(S_OK) != 0 {
+		t.Errorf("hres(S_OK) = %d", hres(S_OK))
 	}
 }
