@@ -1,0 +1,4 @@
+*.syso
+/mymstsc
+/mymstsc-gui.exe
+/mymstsc.exe
