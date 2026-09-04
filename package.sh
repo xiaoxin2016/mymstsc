@@ -19,7 +19,7 @@ GOOS=windows GOARCH=amd64 go build -trimpath \
 GOOS=windows GOARCH=amd64 go build -trimpath \
 	-ldflags "${LDFLAGS} -H=windowsgui" -o "${DIST}/${NAME}/mymstsc-gui.exe" .
 
-cp README.md "${DIST}/${NAME}/"
+cp README.md run.bat "${DIST}/${NAME}/"
 if [ -f LICENSE ]; then cp LICENSE "${DIST}/${NAME}/"; fi
 
 (cd "${DIST}" && zip -qr "${NAME}.zip" "${NAME}")

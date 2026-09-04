@@ -1,0 +1,9 @@
+# Windows scripts must keep CRLF line endings wherever they are checked out,
+# because they are shipped in the release archive and run by cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.go  text eol=lf
+*.sh  text eol=lf
+*.md  text eol=lf
+*.yml text eol=lf

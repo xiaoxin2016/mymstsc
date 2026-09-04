@@ -28,6 +28,12 @@ administrator rights.
 |---|---|
 | `mymstsc.exe` | console build; logs go to stderr |
 | `mymstsc-gui.exe` | no console window; errors appear in a message box |
+| `run.bat` | sample launcher to edit and keep next to the executable |
+
+`run.bat` sets the server, user and window size in one block at the top, reads
+the password from the console instead of storing it, and turns the exit status
+into a readable message. Its tail lists the other common invocations: a saved
+`.rdp` file, `/multimon`, `/admin`, an RD Gateway, a single published program.
 
 The only requirement on the target machine is
 `%SystemRoot%\System32\mstscax.dll`, the Remote Desktop client control that

@@ -103,7 +103,10 @@ the client control, so it cannot be reimplemented on top of it.
 
 Ready-made binaries are attached to each [release](../../releases). Download the
 `.zip`, unzip it, and copy the executable wherever you need it — there is
-nothing to install. `SHA256SUMS.txt` next to it carries the checksums:
+nothing to install. The archive also carries `run.bat`, a commented launcher to
+edit and keep next to the executable: it sets the server, user and window size
+at the top, reads the password from the console rather than storing it, and maps
+the exit status to a readable message. `SHA256SUMS.txt` carries the checksums:
 
 ```powershell
 Get-FileHash .\mymstsc.exe -Algorithm SHA256
